@@ -37,6 +37,14 @@ export default function Sidebar({ sidebarOpen, onCollapse }: SidebarProps) {
             <span>{item.name}</span>
           </Link>
         ))}
+      <nav className="p-6 space-y-2 flex-1">
+        <Link
+          href="/home"
+          className="w-full text-left flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors text-gray-700 hover:bg-gray-100 whitespace-nowrap"
+        >
+          <span>🏠</span>
+          <span>Home</span>
+        </Link>
       </nav>
 
       <div className="p-6 border-t border-gray-200">
