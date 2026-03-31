@@ -486,7 +486,12 @@ function PlanNewWeekPage() {
                                     className="w-full p-2 rounded text-center font-bold text-xs border border-emerald-200 bg-white text-slate-700 appearance-none"
                                   >
                                     <option value="">-- Select --</option>
-                                    {(branchManagerData[managerReplacementBranch[day] || selectedBranch] || []).map(e => (
+                                    {((() => {
+                                      const branch = managerReplacementBranch[day] || selectedBranch;
+                                      const managers = branchManagerData[branch] || [];
+                                      const allStaff = branchStaffData[branch] || [];
+                                      return managers.length > 0 ? managers : allStaff;
+                                    })()).map(e => (
                                       <option key={e} value={e}>{e}</option>
                                     ))}
                                   </select>
