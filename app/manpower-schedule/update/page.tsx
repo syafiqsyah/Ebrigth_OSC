@@ -110,7 +110,8 @@ export default function UpdateSchedulePage() {
   const [branchManagerData, setBranchManagerData] = useState<Record<string, string[]>>({});
   const [columnReplacementBranch, setColumnReplacementBranch] = useState<Record<string, string>>({});
   const [managerReplacementBranch, setManagerReplacementBranch] = useState<Record<string, string>>({});
-  
+  const [scheduledElsewhere, setScheduledElsewhere] = useState<Record<string, Set<string>>>({});
+
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -170,6 +171,20 @@ export default function UpdateSchedulePage() {
     });
   }, [history, filterBranch, filterDate, userRole, userBranch]);
 
+  // Compute which staff are already scheduled at other branches for the same week
+  useEffect(() => {
+    if (!selectedRecord) return;
+    const map: Record<string, Set<string>> = {};
+    history.forEach((s: any) => {
+      if (s.startDate !== selectedRecord.startDate || s.branch === selectedRecord.branch) return;
+      const names = new Set<string>(
+        (Object.values(s.selections || {}) as string[]).filter((v) => v && v !== "None")
+      );
+      if (names.size > 0) map[s.branch] = names;
+    });
+    setScheduledElsewhere(map);
+  }, [selectedRecord, history]);
+
   const handleSelectRecord = (record: any) => {
     setSelectedRecord(record);
     setUpdatedSelections({ ...record.selections });
@@ -181,11 +196,9 @@ export default function UpdateSchedulePage() {
       const next = { ...prev };
       if (!name || name === "None") {
         delete next[`${day}-${targetTime}-${colId}`];
-        return next;
+      } else {
+        next[`${day}-${targetTime}-${colId}`] = name;
       }
-      getTimeSlotsForDay(day, selectedRecord.branch).forEach((slot) => {
-        next[`${day}-${slot}-${colId}`] = name;
-      });
       return next;
     });
   };
@@ -553,19 +566,28 @@ export default function UpdateSchedulePage() {
                                           const colStaffList = replacementBranch
                                             ? (branchStaffData[replacementBranch] || [])
                                             : activeStaffList;
-                                          const namesUsedInOtherColumns = new Set(
-                                            COLUMNS.filter(c => c.id !== col.id)
+                                          const namesUsedInOtherColumns = new Set([
+                                            ...COLUMNS.filter(c => c.id !== col.id && c.type === col.type)
                                               .flatMap(c => slots.map(s => updatedSelections[`${day}-${s}-${c.id}`]))
-                                              .filter(Boolean)
-                                          );
+                                              .filter(Boolean),
+                                            ...(actualManagerVal ? [actualManagerVal] : []),
+                                          ]);
                                           return (
                                             <td key={col.id} className={`p-0 border h-[32px] ${col.type==='exec' ? 'bg-slate-50' : 'bg-white'}`}>
                                               <select value={val} onChange={(e) => handleActualNameSelect(day, slot, col.id, e.target.value)}
                                                 className={`w-full h-full p-1 outline-none font-bold text-center appearance-none block ${val ? getEmployeeColor(val) : 'bg-transparent text-slate-300'}`}>
-                                                <option value="">-</option>
-                                                {colStaffList.map(e => (
-                                                  <option key={e} value={e} disabled={namesUsedInOtherColumns.has(e)} className="text-black">{e}</option>
-                                                ))}
+                                                <option value="">None</option>
+                                                {colStaffList.map(e => {
+                                                  const conflictBranch = replacementBranch
+                                                    ? Object.entries(scheduledElsewhere).find(([, names]) => names.has(e))?.[0]
+                                                    : undefined;
+                                                  const isConflict = !!conflictBranch;
+                                                  return (
+                                                    <option key={e} value={e} disabled={namesUsedInOtherColumns.has(e) || isConflict} className="text-black">
+                                                      {isConflict ? `${e} (at ${conflictBranch})` : e}
+                                                    </option>
+                                                  );
+                                                })}
                                               </select>
                                             </td>
                                           );
