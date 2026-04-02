@@ -110,7 +110,7 @@ export default function UpdateSchedulePage() {
   const [branchManagerData, setBranchManagerData] = useState<Record<string, string[]>>({});
   const [columnReplacementBranch, setColumnReplacementBranch] = useState<Record<string, string>>({});
   const [managerReplacementBranch, setManagerReplacementBranch] = useState<Record<string, string>>({});
-  const [scheduledElsewhere, setScheduledElsewhere] = useState<Record<string, Set<string>>>({});
+  const [scheduledElsewhere, setScheduledElsewhere] = useState<Record<string, Record<string, Set<string>>>>({});
 
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -174,13 +174,17 @@ export default function UpdateSchedulePage() {
   // Compute which staff are already scheduled at other branches for the same week
   useEffect(() => {
     if (!selectedRecord) return;
-    const map: Record<string, Set<string>> = {};
+    const map: Record<string, Record<string, Set<string>>> = {};
     history.forEach((s: any) => {
       if (s.startDate !== selectedRecord.startDate || s.branch === selectedRecord.branch) return;
-      const names = new Set<string>(
-        (Object.values(s.selections || {}) as string[]).filter((v) => v && v !== "None")
-      );
-      if (names.size > 0) map[s.branch] = names;
+      const dayMap: Record<string, Set<string>> = {};
+      Object.entries(s.selections || {}).forEach(([key, val]: [string, any]) => {
+        if (!val || val === "None") return;
+        const dayName = key.split('-')[0];
+        if (!dayMap[dayName]) dayMap[dayName] = new Set();
+        dayMap[dayName].add(val as string);
+      });
+      if (Object.keys(dayMap).length > 0) map[s.branch] = dayMap;
     });
     setScheduledElsewhere(map);
   }, [selectedRecord, history]);
@@ -544,7 +548,7 @@ export default function UpdateSchedulePage() {
                                             {(branchManagerData[managerReplacementBranch[day] || selectedRecord.branch] || []).map(e => {
                                               const mgReplacementBranch = managerReplacementBranch[day];
                                               const conflictBranch = mgReplacementBranch
-                                                ? Object.entries(scheduledElsewhere).find(([, names]) => names.has(e))?.[0]
+                                                ? Object.entries(scheduledElsewhere).find(([, dayMap]) => dayMap[day]?.has(e))?.[0]
                                                 : undefined;
                                               const isConflict = !!conflictBranch;
                                               return (
@@ -575,10 +579,21 @@ export default function UpdateSchedulePage() {
                                           const colStaffList = replacementBranch
                                             ? (branchStaffData[replacementBranch] || [])
                                             : activeStaffList;
-                                          const namesUsedInOtherColumns = new Set([
-                                            ...COLUMNS.filter(c => c.id !== col.id && c.type === col.type)
+                                          // Block names used in same slot across any column type (cross-type per-slot conflict)
+                                          const namesInSameSlot = new Set(
+                                            COLUMNS.filter(c => c.id !== col.id)
+                                              .map(c => updatedSelections[`${day}-${slot}-${c.id}`])
+                                              .filter(Boolean)
+                                          );
+                                          // Block names used in same column type across any slot (same-role dedup)
+                                          const namesInSameType = new Set(
+                                            COLUMNS.filter(c => c.id !== col.id && c.type === col.type)
                                               .flatMap(c => slots.map(s => updatedSelections[`${day}-${s}-${c.id}`]))
-                                              .filter(Boolean),
+                                              .filter(Boolean)
+                                          );
+                                          const namesUsedInOtherColumns = new Set([
+                                            ...namesInSameSlot,
+                                            ...namesInSameType,
                                             ...(actualManagerVal ? [actualManagerVal] : []),
                                           ]);
                                           return (
@@ -588,7 +603,7 @@ export default function UpdateSchedulePage() {
                                                 <option value="">None</option>
                                                 {colStaffList.map(e => {
                                                   const conflictBranch = replacementBranch
-                                                    ? Object.entries(scheduledElsewhere).find(([, names]) => names.has(e))?.[0]
+                                                    ? Object.entries(scheduledElsewhere).find(([, dayMap]) => dayMap[day]?.has(e))?.[0]
                                                     : undefined;
                                                   const isConflict = !!conflictBranch;
                                                   return (
