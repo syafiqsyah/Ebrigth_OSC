@@ -56,16 +56,16 @@ const SummaryTable = ({ title, data, theme = "blue" }: { title: string, data: an
   };
 
   return (
-    <div className={`overflow-hidden rounded-xl border ${theme === "orange" ? "border-orange-200" : "border-slate-200"} bg-white shadow-md w-full flex-1`}>
-      <header className={`border-b px-2 py-1.5 text-center ${theme === "orange" ? "bg-orange-600 text-white" : "bg-[#2D3F50] text-white"}`}>
-        <h3 className="text-[10px] font-black uppercase tracking-widest">{title}</h3>
+    <div className={`overflow-hidden rounded-xl border ${theme === "orange" ? "border-orange-200" : "border-slate-200"} bg-white shadow-md w-full`}>
+      <header className={`border-b px-4 py-2.5 text-center ${theme === "orange" ? "bg-orange-600 text-white" : "bg-[#2D3F50] text-white"}`}>
+        <h3 className="text-sm font-black uppercase tracking-widest">{title}</h3>
       </header>
       <div className="overflow-x-auto">
-        <table className="w-full text-[8px] border-collapse">
+        <table className="w-full text-xs border-collapse">
           <thead className="bg-slate-100 text-slate-600 border-b">
             <tr>
-              <th className="p-1.5 border-r text-left w-6">No.</th>
-              <th className="p-1.5 border-r text-left">Name</th>
+              <th className="p-2 border-r text-left w-8">No.</th>
+              <th className="p-2 border-r text-left">Name</th>
               <th className="p-2 border-r text-center">Coach</th>
               <th className="p-2 border-r text-center">Exec</th>
               <th className="p-2 text-center">Total</th>
@@ -78,17 +78,17 @@ const SummaryTable = ({ title, data, theme = "blue" }: { title: string, data: an
               const t = formatTime(row.total);
               return (
                 <tr key={row.name} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-1.5 border-r text-center text-slate-400 font-bold">{index + 1}</td>
-                  <td className="p-1.5 border-r font-black text-slate-700 truncate">{getShortName(row.name)}</td>
-                  <td className="p-1.5 border-r text-center">
-                    <span className="bg-slate-50 border rounded px-1 py-0.5 text-slate-600 font-bold">{c.h}h {c.m}m</span>
+                  <td className="p-2 border-r text-center text-slate-400 font-bold">{index + 1}</td>
+                  <td className="p-2 border-r font-black text-slate-700">{getShortName(row.name)}</td>
+                  <td className="p-2 border-r text-center">
+                    <span className="bg-slate-50 border rounded px-2 py-0.5 text-slate-600 font-bold">{c.h}h {c.m}m</span>
                   </td>
-                  <td className="p-1.5 border-r text-center">
-                    <span className="bg-slate-50 border rounded px-1 py-0.5 text-slate-600 font-bold">{e.h}h {e.m}m</span>
+                  <td className="p-2 border-r text-center">
+                    <span className="bg-slate-50 border rounded px-2 py-0.5 text-slate-600 font-bold">{e.h}h {e.m}m</span>
                   </td>
-                  <td className="p-1.5 text-center">
-                    <span className={`rounded-lg px-2 py-0.5 font-black border ${theme === "orange" ? "bg-orange-50 border-orange-200 text-orange-600" : "bg-blue-50 border-blue-200 text-blue-600"}`}>
-                      {t.h}:{t.m}
+                  <td className="p-2 text-center">
+                    <span className={`rounded-lg px-3 py-0.5 font-black border text-sm ${theme === "orange" ? "bg-orange-50 border-orange-200 text-orange-600" : "bg-blue-50 border-blue-200 text-blue-600"}`}>
+                      {t.h}h {t.m}m
                     </span>
                   </td>
                 </tr>
@@ -218,13 +218,19 @@ export default function UpdateSchedulePage() {
   };
 
   const sanitizeSelections = (selections: Record<string, any>, branch?: string) => {
-    // Build case-insensitive lookup map from all known staff
     const allKnownStaff = [...SHARED_EMPLOYEES, ...(branch ? (branchStaffData[branch] || []) : Object.values(branchStaffData).flat())];
     const nameLookup = new Map(allKnownStaff.map(n => [n.toLowerCase(), n]));
     return Object.fromEntries(
       Object.entries(selections || {})
         .filter(([, v]) => v && v !== "None")
-        .map(([k, v]) => [k, nameLookup.get((v as string).toLowerCase()) ?? v])
+        .map(([k, v]) => {
+          const storedLower = (v as string).toLowerCase();
+          const exactMatch = nameLookup.get(storedLower);
+          if (exactMatch) return [k, exactMatch];
+          // Fuzzy: handles "Thiru" → "Thiru (Training)" when base name matches
+          const fuzzyMatch = allKnownStaff.find(n => n.toLowerCase().startsWith(storedLower + ' '));
+          return [k, fuzzyMatch ?? v];
+        })
     );
   };
 
@@ -363,7 +369,7 @@ export default function UpdateSchedulePage() {
 
   if (selectedRecord) {
     
-    const originalData = selectedRecord.originalSelections || selectedRecord.selections || {};
+    const originalData = sanitizeSelections(selectedRecord.originalSelections || selectedRecord.selections || {}, selectedRecord.branch);
     const originalNotes = selectedRecord.notes || selectedRecord.originalNotes || {};
 
     return (
@@ -702,7 +708,7 @@ export default function UpdateSchedulePage() {
 
               <div className="mt-6 bg-white p-4 rounded-xl border border-slate-200 shadow-md">
                 <h2 className="text-sm font-black text-center uppercase tracking-widest text-slate-800 mb-4">📊 Staff Hours Comparison</h2>
-                <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex flex-col gap-4">
                     <SummaryTable title="ORIGINAL" data={calculateHoursForData({}, true)} theme="blue" />
                     <SummaryTable title="ADJUSTED" data={calculateHoursForData(updatedSelections, false)} theme="orange" />
                 </div>
