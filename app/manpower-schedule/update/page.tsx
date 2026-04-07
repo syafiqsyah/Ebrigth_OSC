@@ -2,11 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO, addDays, startOfWeek, endOfWeek } from "date-fns"; 
-import { DateRange, RangeKeyDict } from "react-date-range"; 
+import { format, parseISO, addDays, startOfWeek } from "date-fns";
 import { useSession } from "next-auth/react";
-import "react-date-range/dist/styles.css"; 
-import "react-date-range/dist/theme/default.css"; 
 import Sidebar from "@/app/components/Sidebar";
 
 // --- IMPORT SHARED CONSTANTS ---
@@ -129,16 +126,9 @@ export default function UpdateSchedulePage() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [filterBranch, setFilterBranch] = useState<string>("");
-  const [filterDate, setFilterDate] = useState<string>(""); 
-  
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [shownDate, setShownDate] = useState(new Date());
-  const [isDateFiltered, setIsDateFiltered] = useState(false);
-  const [range, setRange] = useState([{
-    startDate: new Date(),
-    endDate: new Date(),
-    key: "selection",
-  }]);
+  const [filterYear, setFilterYear] = useState<string>("");
+  const [filterMonth, setFilterMonth] = useState<string>("");
+  const [filterQuick, setFilterQuick] = useState<string>(""); // "this-week" | "last-week"
 
   const fetchStaff = async () => {
     const res = await fetch('/api/branch-staff');
@@ -179,13 +169,19 @@ export default function UpdateSchedulePage() {
   const userBranch = (session?.user as any)?.branchName;
 
   const filteredHistory = useMemo(() => {
+    const today = new Date();
+    const thisMonday = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const lastMonday = format(startOfWeek(addDays(today, -7), { weekStartsOn: 1 }), "yyyy-MM-dd");
     return history.filter((record: any) => {
       if (userRole === "BRANCH_MANAGER" && record.branch !== userBranch) return false;
-      const matchBranch = filterBranch ? record.branch === filterBranch : true;
-      const matchWeek = filterDate ? record.startDate === filterDate : true;
-      return matchBranch && matchWeek;
+      if (filterBranch && record.branch !== filterBranch) return false;
+      if (filterYear && format(parseISO(record.startDate), "yyyy") !== filterYear) return false;
+      if (filterMonth && format(parseISO(record.startDate), "yyyy-MM") !== `${filterYear || format(today, "yyyy")}-${filterMonth}`) return false;
+      if (filterQuick === "this-week" && record.startDate !== thisMonday) return false;
+      if (filterQuick === "last-week" && record.startDate !== lastMonday) return false;
+      return true;
     });
-  }, [history, filterBranch, filterDate, userRole, userBranch]);
+  }, [history, filterBranch, filterYear, filterMonth, filterQuick, userRole, userBranch]);
 
   // Compute which staff are already scheduled at other branches for the same week
   useEffect(() => {
@@ -810,51 +806,54 @@ export default function UpdateSchedulePage() {
                 </h1>
               </div>
 
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 mb-6 relative">
-                
-                {userRole !== "BRANCH_MANAGER" && (
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Filter by Branch</label>
-                    <select 
-                      value={filterBranch} 
-                      onChange={(e) => setFilterBranch(e.target.value)} 
-                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 outline-none focus:border-blue-500 transition-colors"
-                    >
-                      <option value="">All Branches</option>
-                      {ALL_BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3 mb-6">
+                <div className="flex flex-wrap gap-3">
+                  {userRole !== "BRANCH_MANAGER" && (
+                    <div className="flex-1 min-w-[180px]">
+                      <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Branch</label>
+                      <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 outline-none focus:border-blue-500 transition-colors">
+                        <option value="">All Branches</option>
+                        {ALL_BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Year</label>
+                    <select value={filterYear} onChange={(e) => { setFilterYear(e.target.value); setFilterQuick(""); }}
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 outline-none focus:border-blue-500 transition-colors">
+                      <option value="">All Years</option>
+                      {Array.from(new Set(history.map(r => format(parseISO(r.startDate), "yyyy")))).sort((a,b) => parseInt(b)-parseInt(a)).map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
                     </select>
                   </div>
-                )}
-                
-                <div className="flex-1">
-                  <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Filter by Week</label>
-                  <div 
-                    onClick={() => setShowCalendar(true)}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 cursor-pointer flex justify-between items-center transition-colors hover:border-blue-500"
-                  >
-                    <span>
-                      {isDateFiltered 
-                        ? `${format(range[0].startDate, "dd MMM yyyy")} - ${format(range[0].endDate, "dd MMM yyyy")}` 
-                        : "All Weeks"}
-                    </span>
-                    <span>📅</span>
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Month</label>
+                    <select value={filterMonth} onChange={(e) => { setFilterMonth(e.target.value); setFilterQuick(""); }}
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 outline-none focus:border-blue-500 transition-colors">
+                      <option value="">All Months</option>
+                      {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m, i) => (
+                        <option key={m} value={m}>{["January","February","March","April","May","June","July","August","September","October","November","December"][i]}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-                
-                {(filterBranch || isDateFiltered) && (
-                  <div className="flex items-end">
-                    <button 
-                      onClick={() => { 
-                        setFilterBranch(""); 
-                        setFilterDate(""); 
-                        setIsDateFiltered(false);
-                      }}
-                      className="h-[50px] px-6 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-black uppercase tracking-widest text-xs transition-colors"
-                    >
-                      Clear
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-[10px] font-black uppercase text-slate-400">Quick:</span>
+                  {["this-week","last-week"].map(q => (
+                    <button key={q} onClick={() => { setFilterQuick(filterQuick === q ? "" : q); setFilterYear(""); setFilterMonth(""); }}
+                      className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-colors ${filterQuick === q ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      {q === "this-week" ? "This Week" : "Last Week"}
                     </button>
-                  </div>
-                )}
+                  ))}
+                  {(filterBranch || filterYear || filterMonth || filterQuick) && (
+                    <button onClick={() => { setFilterBranch(""); setFilterYear(""); setFilterMonth(""); setFilterQuick(""); }}
+                      className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wide bg-red-50 text-red-600 hover:bg-red-100 transition-colors ml-auto">
+                      Clear All
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -945,45 +944,6 @@ export default function UpdateSchedulePage() {
             </div>
         </main>
       </div>
-      {showCalendar && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white p-6 rounded-[2rem] shadow-2xl border border-slate-100 flex flex-col max-w-md w-full relative">
-            <h2 className="text-xl font-black text-slate-800 mb-4 uppercase tracking-tight text-center">Select a Week</h2>
-
-            <div className="flex justify-center w-full overflow-hidden mb-4">
-              <DateRange
-                onChange={(item: RangeKeyDict) => {
-                  const selection = item.selection;
-                  if (selection.startDate) {
-                    const start = startOfWeek(selection.startDate, { weekStartsOn: 1 });
-                    const end = endOfWeek(selection.startDate, { weekStartsOn: 1 });
-                    setRange([{ startDate: start, endDate: end, key: "selection" }]);
-                    setIsDateFiltered(true);
-                    setFilterDate(format(start, "yyyy-MM-dd"));
-                    setTimeout(() => setShowCalendar(false), 250);
-                  }
-                }}
-                shownDate={shownDate}
-                onShownDateChange={(date) => setShownDate(date)}
-                moveRangeOnFirstSelection={true}
-                ranges={range}
-                rangeColors={["#3b82f6"]}
-                months={1}
-                direction="horizontal"
-                dateDisplayFormat="dd MMM yyyy"
-                className="border-none"
-              />
-            </div>
-
-            <button
-              onClick={() => setShowCalendar(false)}
-              className="w-full py-4 bg-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-300 uppercase tracking-widest text-sm transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
