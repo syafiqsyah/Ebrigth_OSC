@@ -6,7 +6,7 @@ import Sidebar from "@/app/components/Sidebar";
 import UserHeader from "@/app/components/UserHeader";
 
 export default function RegisterPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -21,7 +21,7 @@ export default function RegisterPage() {
       </header>
 
       <div className="flex h-[calc(100vh-100px)]">
-        <Sidebar sidebarOpen={sidebarOpen} onCollapse={() => setSidebarOpen(false)} />
+        <Sidebar sidebarOpen={sidebarOpen} onToggle={() => setSidebarOpen(p => !p)} />
 
         {!sidebarOpen && (
           <button
