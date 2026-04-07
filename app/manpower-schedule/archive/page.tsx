@@ -462,7 +462,7 @@ export default function ArchiveSchedulePage() {
                       return (
                         <div>
                           <div className="flex items-center gap-3 mb-5">
-                            <button onClick={() => setDrillMonth(null)} className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-600 hover:bg-slate-50 transition-colors">← Back</button>
+                            <button onClick={() => setDrillMonth(null)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-black transition-colors shadow-sm">← Back</button>
                             <h2 className="text-lg font-black uppercase tracking-widest text-slate-800">{drillYear} <span className="text-slate-400">›</span> {MONTH_NAMES[drillMonth]}</h2>
                           </div>
                           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
